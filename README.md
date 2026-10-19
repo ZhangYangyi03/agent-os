@@ -36,3 +36,22 @@ kernel-lab/docs/what-is-not-here.md：同样的内核能力，观察自己的系
 ```bash
 python layers.py          # 逐层探测，打印这一台机器的真实状态
 ```
+
+## 与另外两个仓库的关系（为什么不是三个孤立项目）
+
+    kernel-lab    L2 的可操作证明：KMDF 驱动骨架 + 自签 + VM 调试，一个 IOCTL 只返回调用者 PID
+    agent-anyapp  L5/L6/L7 的统一契约：三条通道 -> 同一个 {name,args,returns,channel}
+    agent-os      把 L0..L8 说成一张可测的表，并明确 L0/L1 不可写
+
+三者是同一条链：kernel-lab 说明"内核这层我进得去，但只走官方签名路"，
+agent-anyapp 说明"数据这层三条通道我能收敛成一个契约"，
+agent-os 说明"整条从微码到云端，谁说了算、我碰得到哪、碰不到的地方是什么原因"。
+
+一句能被验证的话：Linux 的 /proc 与 /sys 是同一件事的下界；Windows 上等价物是
+WMI、ETW、驱动程序、CDP。把这些入口接进同一个工具契约，就是 Agent OS 的定义。
+
+## 与正在进行的进程的接口
+
+- kernel-lab（L2）：已有，未在本机 install（需开测试签名 + 重启，属操作者决定）
+- robot-spine / eda-spine / covagent（领域内核）：都是"把某层的状态机变成可被 AI 调用的安全动作"，与 anyapp 同构
+- autoforge（本 agent）：L7/L8 的调用方，所有通道最终都落到工具契约
