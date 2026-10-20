@@ -75,6 +75,11 @@ jobs:
         working-directory: osctl
         run: |
           python -c "import json;d=json.load(open('routes.json',encoding='utf-8'));v={x['route']:x for x in d['routes']}['vendor signed driver'];codes=[a['win32'] for a in v['open_attempts'].values()];bad=[c for c in codes if c in (2,3)];assert not bad or v['service_running'] is False,bad;print('device codes',codes,'-> 2/3 means the device is not on this host, 5 means it is there and the ACL refused us')"
+      - name: the downgrade cost is reported with this host's own driver count
+        working-directory: osctl
+        run: |
+          python downgrade.py > downgrade.json
+          python -c "import json;d=json.load(open('downgrade.json',encoding='utf-8'));c=d['consequences'];assert len(c)>=5,c;n=d['drivers_the_check_would_not_cover'];assert isinstance(n['total_drivers_with_a_path'],int),n;assert n['total_drivers_with_a_path']>0 or 'enumeration returned nothing' in str(n['examples']),n;print('consequences',len(c),'| drivers',n['total_drivers_with_a_path'],'| third-party',n['non_microsoft_signed'])"
       - name: microcode distance is measured as named gates, not a claim
         working-directory: kernel/control
         run: |
