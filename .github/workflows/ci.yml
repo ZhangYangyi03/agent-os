@@ -45,13 +45,10 @@ jobs:
         working-directory: osctl
         run: |
           python elevate.py --selftest
-      - name: the elevation path refuses to run without elevation, and says so
+      - name: the elevation path refuses to run unelevated -- tested by pinning the level
         working-directory: osctl
         run: |
-          python elevate.py --run > out.json
-          python -c "import json;d=json.load(open('out.json'));assert d['ran'] is False,d;print('refused without elevation:',d['integrity'])"
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-        shell: pwsh
+          python test_elevate.py
       - name: the host report says which files are windows-only here
         working-directory: osctl
         run: |
