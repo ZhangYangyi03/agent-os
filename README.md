@@ -86,6 +86,17 @@ HKLM、服务、事件日志那四道；进程那 202 条要的是内核态，�
 省掉去右键的那一下。回执带链式 sha256（prev_sha256 指向上一次的 sha256），
 连跑两次实测 5a5e3c55 → 9e49c816 → 8032d94c。
 
+## 不降级的替代路线（详见 NO-DOWNGRADE.md，五条都实测过）
+
+    route 1  厂商签名驱动      能力在机器上、钥匙在厂商手里：设备 \\.\AMDRyzenMasterDriverV31 打不开，win32 5
+    route 2  可观测面          1542 个 WMI 类 / 1137 个 ETW provider / 214 个 PDH 计数器集，零成本
+    route 3  WSL2 root         实测 MSR 可读可写（写回 APIC_BASE 原值并读回一致），86 个 kprobe 目标，insmod+gcc 都在
+    route 4  VirtualBox 7.2.16 可丢弃的 guest 内核，对宿主零代价
+    route 5  UI 自动化         UIA 11 个顶层元素；没有 API 的程序的正规合同
+
+所以"不降级"不是一句态度：要控制整台 Windows，是提权（已实测）+ 等厂商接口；
+要控制一整个内核，WSL2 root 现在就能读写 MSR，且 Windows 侧一个设置都没动。
+
 ## 目标：Agent 直接控制整个操作系统 —— 现在是 6/14 类做得到，拒绝的地方有名字
 
 osctl/osctl.py 是控制面本身：14 个对象类，每类不只是枚举，还真的去改一次再改回来，

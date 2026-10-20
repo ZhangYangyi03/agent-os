@@ -62,6 +62,15 @@ jobs:
         run: |
           python hostenv.py > host.json
           python -c "import json;d=json.load(open('host.json'));assert d['system'];print(d['system'],d['release'],'portable',len(d['runs_here']['portable']))"
+      - name: the no-downgrade routes are reported as measurements
+        working-directory: osctl
+        run: |
+          python nodegrade.py > routes.json
+          python -c "import json;d=json.load(open('routes.json'));r={x['route']:x for x in d['routes']};assert len(r)==5,r.keys();assert 'why_rejected' in d['rejected_route'];v=r['vendor signed driver']['open_attempts'];assert all(a['win32']==5 for a in v.values()),v;print('5 routes, vendor device still refused with 5')"
+      - name: a route that claims reach must carry the number that proves it
+        working-directory: osctl
+        run: |
+          python -c "import json;d=json.load(open('routes.json'));r={x['route']:x for x in d['routes']};o=r['observability surfaces'];assert int(o['wmi_root_wmi_classes'])>100,o;assert o['etw_providers']>100,o;w=r['WSL2 root'];assert 'what_it_cannot_reach' in w and w['what_it_cannot_reach'],w;print('observability',o['wmi_root_wmi_classes'],'wmi /',o['etw_providers'],'etw providers')"
       - name: microcode distance is measured as named gates, not a claim
         working-directory: kernel/control
         run: |
