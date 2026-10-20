@@ -38,7 +38,8 @@
     /dev/cpu/0/msr          crw------- root root      读：TSC / APIC_BASE / MTRRCAP 都有值
                             写：把 APIC_BASE 原值写回，读回一致 → WRITE ok
     /dev/mem                crw-r----- root kmem
-    tracing                 available_filter_functions 里有 86 个 kprobe 目标
+    tracing                 available_filter_functions 里 63259 个可挂点函数（早先写的 86 是
+                            用 grep -c kprobe 数名字里带 kprobe 的行，数错了）
     insmod / modprobe       /usr/sbin 下都在，gcc 也在
     kptr_restrict=1  perf_event_paranoid=2   都是 root 可绕过的默认值
 
@@ -56,6 +57,20 @@
 UIAutomationClient 当场看到 11 个顶层元素、9 个有名字。Invoke / SetValue / Select / Expand / Scroll
 是结构化动作，不是鼠标坐标。不需要提权。reaches：任何发布了可访问性树的程序；
 给不了：自己绘制、没有 provider 的程序（部分游戏/自绘 UI），那就只剩像素。
+
+## 落地产物：wsl/msr.py + osctl/wslprobe.py
+
+结论变成能跑的两个文件。osctl/wslprobe.py 把 guest 的答案和 host 的答案并排放：
+
+    host   \.\PhysicalMemory                     win32 2   不存在
+           \.\AMDRyzenMasterDriverV31             win32 5   在，ACL 拒；integrity=medium
+    guest  kernel 6.18.33.2-microsoft-standard-WSL2, uid 0
+           MSR     TSC 读得到 / APIC_BASE 读得到 / MTRRCAP 0x0805 / PAT 0x0601070006050704
+                   MISC_ENABLE errno 5（这一个 guest 也拒）
+           写入    把 APIC_BASE 原值写回 → unchanged: True
+           挂点     63259 个函数可挂 kprobe，/dev/mem 在，insmod+modprobe+gcc 在
+
+verdict 那一行就是全部分歧：guest_has_msr=true, host_has_msr=false。
 
 ## 一句话结论
 

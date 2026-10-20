@@ -80,6 +80,11 @@ jobs:
         run: |
           python downgrade.py > downgrade.json
           python -c "import json;d=json.load(open('downgrade.json',encoding='utf-8'));c=d['consequences'];assert len(c)>=5,c;n=d['drivers_the_check_would_not_cover'];assert isinstance(n['total_drivers_with_a_path'],int),n;assert n['total_drivers_with_a_path']>0 or 'enumeration returned nothing' in str(n['examples']),n;print('consequences',len(c),'| drivers',n['total_drivers_with_a_path'],'| third-party',n['non_microsoft_signed'])"
+      - name: the guest pairs its reach against the host instead of claiming it
+        working-directory: osctl
+        run: |
+          python wslprobe.py > pair.json
+          python -c "import json;d=json.load(open('pair.json',encoding='utf-8'));assert 'guest' in d and 'host' in d;assert 'guest_has_msr' in d['verdict'];assert d['verdict']['reading'];print('pair written; guest_has_msr=',d['verdict']['guest_has_msr'],'host_has_msr=',d['verdict']['host_has_msr'])"
       - name: microcode distance is measured as named gates, not a claim
         working-directory: kernel/control
         run: |
