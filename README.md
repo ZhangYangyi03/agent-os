@@ -31,6 +31,34 @@ L2 的实现在 kernel/（原 kernel-lab），L5/L6/L7 的实现在 anyapp/（�
     cd anyapp    && python demo.py           # 三条通道收敛成同一个 {name,args,returns,channel}
     cd kernel/control && python l0ctl.py     # L3/L4 的控制面：枚举、查询、打开、被拒的 Win32 码
 
+## 目标：Agent 直接控制整个操作系统 —— 现在是 6/14 类做得到，拒绝的地方有名字
+
+osctl/osctl.py 是控制面本身：14 个对象类，每类不只是枚举，还真的去改一次再改回来，
+结果记 allowed 或 refused 加码。COVERAGE.md 是它生成的表。
+
+    14 个对象类 / 17 个动作做成 / 6 个被拒绝
+    被拒绝的六条，根是同一个：medium 完整性、未提权、5 个特权
+
+    process   337 个进程可见，132 个可读内存，202 个被内核拒（PPL/受保护）  代码 5
+    service   770 个可枚举可查询，停 wuauserv 被拒                        代码 5
+    driver    442 个可枚举，SeLoadDriverPrivilege 不在令牌里               无 privileges
+    filesystem 自己目录写得进并读回并删掉，C:\Windows 写不进               拒绝
+    registry  HKCU 建/写/读/删成功，HKLM 被拒                             代码 5
+    eventlog  System 读得到，Security 读不到                              代码 5
+
+十七个做成里包括：调度任务 create+query+delete、窗口枚举、会话枚举、PnP 设备 442、
+卷、防火墙状态、Appx 包、监听端口 —— 也就是说**这台机器上每一个可观测的对象类都摸得到**。
+
+从当前这一层到"控制整个操作系统"是四步，路径是量出来的，不是猜的：
+
+    1  提权（操作者点一次 UAC）          打开文件系统/注册表/服务/事件日志四道拒绝
+    2  测试签名 + SeLoadDriverPrivilege   打开内核态；进程那 202 条会一起塌
+    3  内核驱动任意读写                  改得动任何对象，仍然改不动微码
+    4  微码                              不在可及范围，CPU 只认厂商签名并过熔断（见下一节 2/5）
+
+所以这个仓库对"整个操作系统"和"整台机器"是分开写的：前者可及，最后一步到内核驱动即止；
+后者（硅）永远差一道熔断校验。
+
 ## 离"在微码层控制这台机器"还有多远 —— 量过，不是感觉
 
 kernel/control/l0reach.py 把这段距离拆成五道有名字的闸，逐道在本机判定：

@@ -31,6 +31,16 @@ jobs:
         run: |
           python -c "import json,sys;sys.path.insert(0,'.');import l0ctl;r=l0ctl.process_reach();assert r['total']>0;assert r['readable']>0;print('ok',r['readable'],'/',r['total'])"
           python -c "import sys;sys.path.insert(0,'.');import l0ctl;s=l0ctl.service_control('wuauserv','stop');assert 'ok' in s;print('stop without elevation ->',s['ok'],s['exit'])"
+      - name: os census reports a verdict for every object class it scanned
+        working-directory: osctl
+        run: |
+          python osctl.py > census.json
+          python -c "import json;c=json.load(open('census.json'));assert c['classes']>=10,c['classes'];assert c['actions_granted']>0;assert len(c['rows'])==c['classes'];[print(' ',r['class'],r['granted'],'/',r['granted']+r['refused']) for r in c['rows']];print('ok',c['classes'],'classes')"
+      - name: a mutation that cannot be reverted is not reported as granted
+        working-directory: osctl
+        run: |
+          python -c "import sys,os;sys.path.insert(0,'.');import osctl;r=osctl.file_write(os.path.join(os.environ.get('TEMP','.'),'af-ci-probe.txt'));assert r['result']['granted'] is True,r;print('write+read+delete ok')"
+          python -c "import sys,os;sys.path.insert(0,'.');import osctl;r=osctl.registry_probe('HKCU','Software\\af-ci-%d'%os.getpid());assert r['result']['granted'] is True,r;print('hkcu ok')"
       - name: microcode distance is measured as named gates, not a claim
         working-directory: kernel/control
         run: |
