@@ -26,6 +26,11 @@ jobs:
         run: |
           python demo.py > manifest.json
           python -c "import json;m=json.load(open('manifest.json'));names=sorted(x['name'] for x in m);assert names==['api.tags','app.classify','client.tabs','db.tables'],names;print('ok',names)"
+      - name: control plane answers with numbers and refusal codes
+        working-directory: kernel/control
+        run: |
+          python -c "import json,sys;sys.path.insert(0,'.');import l0ctl;r=l0ctl.process_reach();assert r['total']>0;assert r['readable']>0;print('ok',r['readable'],'/',r['total'])"
+          python -c "import sys;sys.path.insert(0,'.');import l0ctl;s=l0ctl.service_control('wuauserv','stop');assert 'ok' in s;print('stop without elevation ->',s['ok'],s['exit'])"
       - name: db.tables works on a synthetic sqlite file
         working-directory: anyapp
         run: |

@@ -1,0 +1,17 @@
+# 编译产物
+out/
+*.obj
+*.o
+*.exe
+*.sys
+*.pdb
+*.ilk
+*.log
+
+# 第三方二进制，体积大且可重下：scriptsetch_wdk.py
+vendor/
+tools/zig/
+
+# Python
+__pycache__/
+*.pyc

@@ -1,0 +1,7 @@
+kernel/ was merged in from https://github.com/ZhangYangyi03/kernel-lab
+source commit: 532c4364d01d075b8b7fb66d4b6c2ec56413479e  (2026-10-19), plus control/ written 2026-10-20.
+
+Files are byte-identical to that commit except control/, which is new. The reason
+for the merge: agent-os calls L2 "the kernel" and answers it with a link to another
+repository; a layer table should contain its own probe. kernel-lab stays as the
+history of how the toolchain was attacked.

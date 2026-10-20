@@ -1,5 +1,18 @@
-"""layers.py -- probe each layer from microcode upward, on THIS machine. Read-only."""
+"""layers.py -- probe each layer from microcode upward, on THIS machine. Read-only.
+
+L3 and L4 are answered by kernel/control/l0ctl.py, which is the control plane an
+agent can drive with no driver at all: enumerate, query, open, and be told exactly
+where the kernel refuses. The measure is the point -- "control" means a number of
+objects, and every refusal carries its Win32 code.
+"""
 import ctypes, os, subprocess, sys, json, winreg
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "kernel", "control"))
+try:
+    import l0ctl
+except Exception as _e:                                    # keeps the probe honest if it moves
+    l0ctl = None
+    _L0CTL_ERROR = repr(_e)
 
 def L0_microcode():
     k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0")
@@ -29,20 +42,39 @@ def L1_firmware():
 
 def L2_kernel():
     return {"writable": "self-signed driver only in test-signing mode",
-            "delivered": "kernel-lab repo (KMHello + sign/install scripts)",
-            "installed_here": False}
+            "delivered": "kernel/ in this repository (KMHello + sign/install scripts + control/l0ctl.py)",
+            "installed_here": False,
+            "compiler_here": False,
+            "why": "no MSVC/cl.exe on this host; aka.ms and download.microsoft.com fail TLS "
+                   "handshake, so VS Build Tools cannot be installed. WDK headers/libs are "
+                   "vendored from NuGet. See kernel/docs/toolchain-dead-ends.md",
+            "what_works_without_a_driver": "kernel/control/l0ctl.py -- L3/L4 probe and refusal codes"}
 
 def L3_drivers():
-    r = subprocess.run("driverquery /FO CSV /NH", shell=True, capture_output=True, text=True,
-                       encoding="gbk", errors="replace", timeout=40)
-    n = len([l for l in (r.stdout or "").splitlines() if l.strip()])
-    r2 = subprocess.run("wmic service get name,state /format:csv", shell=True, capture_output=True,
-                        text=True, encoding="gbk", errors="replace", timeout=40)
-    ns = len([l for l in (r2.stdout or "").splitlines() if l.strip() and "," in l]) - 1
-    return {"drivers_enumerable": n, "services_enumerable": ns, "control": "sc / net, requires ACL"}
+    if l0ctl is None:
+        return {"error": "l0ctl unavailable: " + _L0CTL_ERROR}
+    svc = l0ctl.services()
+    drv = l0ctl.drivers()
+    refusal = l0ctl.service_control("wuauserv", "stop")
+    return {"drivers_enumerable": len(drv),
+            "services_enumerable": len(svc),
+            "security_kernel_components": l0ctl.kernel_security_products(),
+            "stop_attempt": {"target": "wuauserv", "granted": refusal["ok"],
+                             "exit": refusal["exit"]},
+            "control": "query yes, stop/start no: sc returns exit 5 without elevation"}
 
 def L4_process():
-    return {"access": "read/write within same user", "proven_by": "DPAPI cookie chain, runtime key reads"}
+    if l0ctl is None:
+        return {"error": "l0ctl unavailable: " + _L0CTL_ERROR}
+    reach = l0ctl.process_reach()
+    return {"total_processes": reach["total"],
+            "readable": reach["readable"], "writable": reach["writable"],
+            "denied_by_kernel": reach["denied"],
+            "elevated": l0ctl.is_elevated(),
+            "integrity": l0ctl.integrity_level(),
+            "privilege_count": len(l0ctl.privileges()),
+            "refused_examples": [r["name"] + " (" + str(r["pid"]) + ")" for r in reach["refused_examples"][:6]],
+            "access": "read/write only inside the same user; PPL and protected processes refuse"}
 
 def L5_localdata():
     roots = [os.path.expandvars(r"%APPDATA%"), os.path.expandvars(r"%LOCALAPPDATA%")]
@@ -62,7 +94,9 @@ def L7_api():
     return {"channels": ["official OpenAPI", "local HTTP API"], "verified": "Ollama 11434 contract known"}
 
 def L8_cloud():
-    return {"access": "only what is authorised through L6/L7", "note": "no privilege escalation is possible from L0-L5"}
+    return {"access": "only what is authorised through L6/L7",
+            "note": "nothing at L0-L5 grants a token that outranks the caller; the measured "
+                    "boundary is L4's 202 refusals, and only a signed kernel driver moves it"}
 
 LAYERS = [("L0", "microcode", L0_microcode), ("L1", "firmware", L1_firmware),
           ("L2", "kernel", L2_kernel), ("L3", "driver/service", L3_drivers),
