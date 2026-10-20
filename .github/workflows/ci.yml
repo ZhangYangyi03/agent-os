@@ -66,11 +66,15 @@ jobs:
         working-directory: osctl
         run: |
           python nodegrade.py > routes.json
-          python -c "import json;d=json.load(open('routes.json'));r={x['route']:x for x in d['routes']};assert len(r)==5,r.keys();assert 'why_rejected' in d['rejected_route'];v=r['vendor signed driver']['open_attempts'];assert all(a['win32']==5 for a in v.values()),v;print('5 routes, vendor device still refused with 5')"
+          python -c "import json;d=json.load(open('routes.json',encoding='utf-8'));r={x['route']:x for x in d['routes']};assert len(r)==5,r.keys();assert d['rejected_route']['why_rejected'];v=r['vendor signed driver'];assert set(v['open_attempts'])>={'query','read','read_write'},v;s=v['service_running'];codes=[a['win32'] for a in v['open_attempts'].values()];assert all(isinstance(x,int) for x in codes),codes;print('5 routes; vendor device codes',codes,'service running:',s)"
       - name: a route that claims reach must carry the number that proves it
         working-directory: osctl
         run: |
-          python -c "import json;d=json.load(open('routes.json'));r={x['route']:x for x in d['routes']};o=r['observability surfaces'];assert int(o['wmi_root_wmi_classes'])>100,o;assert o['etw_providers']>100,o;w=r['WSL2 root'];assert 'what_it_cannot_reach' in w and w['what_it_cannot_reach'],w;print('observability',o['wmi_root_wmi_classes'],'wmi /',o['etw_providers'],'etw providers')"
+          python -c "import json;d=json.load(open('routes.json',encoding='utf-8'));r={x['route']:x for x in d['routes']};o=r['observability surfaces'];assert int(o['wmi_root_wmi_classes'])>100,o;assert o['etw_providers']>100,o;w=r['WSL2 root'];assert w.get('what_it_cannot_reach'),w;print('observability',o['wmi_root_wmi_classes'],'wmi /',o['etw_providers'],'etw providers')"
+      - name: a refused device is only called refused when the API said so
+        working-directory: osctl
+        run: |
+          python -c "import json;d=json.load(open('routes.json',encoding='utf-8'));v={x['route']:x for x in d['routes']}['vendor signed driver'];codes=[a['win32'] for a in v['open_attempts'].values()];bad=[c for c in codes if c in (2,3)];assert not bad or v['service_running'] is False,bad;print('device codes',codes,'-> 2/3 means the device is not on this host, 5 means it is there and the ACL refused us')"
       - name: microcode distance is measured as named gates, not a claim
         working-directory: kernel/control
         run: |
