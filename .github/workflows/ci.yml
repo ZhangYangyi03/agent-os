@@ -1,0 +1,33 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  layers-and-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: every python file parses
+        shell: pwsh
+        run: |
+          $bad = 0
+          Get-ChildItem -Recurse -Filter *.py | ForEach-Object {
+            python -c "import sys,py_compile;py_compile.compile(sys.argv[1],doraise=True)" $_.FullName
+            if ($LASTEXITCODE -ne 0) { Write-Host "FAIL $($_.FullName)"; $bad = 1 }
+          }
+          if ($bad -ne 0) { exit 1 }
+      - name: layer probe returns all nine layers
+        run: |
+          python layers.py > layers.json
+          python -c "import json;d=json.load(open('layers.json'));assert len(d)==9,d.keys();print('ok',list(d))"
+      - name: contract manifest has the four capabilities
+        working-directory: anyapp
+        run: |
+          python demo.py > manifest.json
+          python -c "import json;m=json.load(open('manifest.json'));names=sorted(x['name'] for x in m);assert names==['api.tags','app.classify','client.tabs','db.tables'],names;print('ok',names)"
+      - name: db.tables works on a synthetic sqlite file
+        working-directory: anyapp
+        run: |
+          python -c "import sqlite3;c=sqlite3.connect('t.db');c.execute('create table a(x)');c.execute('create table b(y)');c.commit()"
+          python -c "import sys;sys.path.insert(0,'.');from demo import reg;print(reg.call('db.tables',path='t.db'))"

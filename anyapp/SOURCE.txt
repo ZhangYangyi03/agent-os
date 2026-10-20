@@ -1,0 +1,8 @@
+anyapp/ was merged in from https://github.com/ZhangYangyi03/agent-anyapp
+source commit: c7a8c98f5c165d5b938f9715861b4537c11932fe  (2026-10-19)
+
+Files are byte-identical to that commit. The reason for the merge is in ../README.md
+("why this is one repository and not two"): agent-os stated the layer map and
+agent-anyapp implemented the three lower channels of it (L5/L6/L7), and a thesis
+that links to its own proof in another repository is two repositories pretending
+to be one.

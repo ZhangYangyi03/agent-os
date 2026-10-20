@@ -9,14 +9,25 @@
 | 层 | 名字 | 谁说了算 | 本机能碰吗 | 入口 | 实测状态 |
 |---|---|---|---|---|---|
 | L0 | 微码 microcode | CPU 厂商私钥 | 不能，永远不能 | — | 已测：Update Revision 0x0a404105，Update Status=6；这层没有任何个人入口 |
-| L1 | 固件 firmware / ACPI / SMBIOS | OEM + 微软签名链 | 只读 | GetSystemFirmwareTable | 已测：ACPI FACP 表 268 字节，OEM=LENOVO；写需厂商签名，无入口 |
+| L1 | 固件 firmware / ACPI / SMBIOS | OEM + 微软签名链 | 只读 | GetSystemFirmwareTable | 已测：ACPI FACP 表 268 字节，OEM 字段读作 CB-01（2026-10-20 复测；10-19 版误记 LENOVO）；写需厂商签名，无入口 |
 | L2 | 内核 kernel | 微软签名链 | 可读、可加载自签驱动（测试模式） | kernel-lab 仓库 | 已交付：KMHello 驱动骨架 + 自签脚本，未在本机 install（需开测试签名并重启） |
 | L3 | 驱动 / 服务 | 系统 ACL | 可枚举、可控制已授权项 | sc / driverquery | 已测：303 个服务、442 个驱动可枚举 |
 | L4 | 进程 / 内存 | 同用户可读写 | 可读可写 | Win32 API | 已测：飞书 cookie 用 DPAPI 解出、微信密钥靠运行时读内存 |
 | L5 | 本地数据 | 文件 ACL + 应用加密 | 明文可读；加密需取密钥 | SQLite / CDP / 配置文件 | 已测：28 个应用 122 个明文库；飞书 SQLCipher 参数已定位 |
-| L6 | 应用界面 | 应用自己 | 可驱动 | CDP / 命令行 / UI 自动化 | 已测：Cursor CDP 9222 返回 200 |
+| L6 | 应用界面 | 应用自己 | 可驱动 | CDP / 命令行 / UI 自动化 | 已测：Cursor CDP 9222 返回 200（2026-10-19；10-20 复测时该客户端未运行，端口关） |
 | L7 | 网络 API | 服务方 | 可调 | 官方 OpenAPI / HTTP | 已测：Ollama 11434 契约已知；飞书 OpenAPI 待授权 |
 | L8 | 云端数据 | 服务方 | 只能通过 L6/L7 | API | 不能越权；只拿被授权的数据 |
+
+## 一个仓库，不是两个
+
+L5/L6/L7 的实现在本仓库的 anyapp/ 里。它原先独立成 agent-anyapp 仓库，
+2026-10-20 并进来（逐字节搬，出处写在 anyapp/SOURCE.txt，原仓库保留不动作为历史）。
+
+理由：agent-os 主张一张层表，agent-anyapp 是 L5/L6/L7 那三行的实现，
+两个分开就变成"论点和它的证据各在一个仓库里"。现在跑一次 demo.py 就是跑这张表的下半截。
+
+    python layers.py                  # L0..L8 逐层探测，打印这台机器的真实状态
+    cd anyapp && python demo.py       # 三条通道收敛成同一个 {name,args,returns,channel}
 
 ## 三条通道 -> 一个契约
 
