@@ -14,6 +14,12 @@ except Exception as _e:                                    # keeps the probe hon
     l0ctl = None
     _L0CTL_ERROR = repr(_e)
 
+try:
+    import l0reach
+except Exception as _e2:
+    l0reach = None
+    _L0REACH_ERROR = repr(_e2)
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "anyapp"))
 try:
     import census as anyapp_census
@@ -41,7 +47,15 @@ def L0_microcode():
             pass
     winreg.CloseKey(k)
     out["writable"] = False
-    out["why"] = "microcode updates must be signed by the CPU vendor key; no local path exists"
+    if l0reach is None:
+        out["why"] = "microcode updates must be signed by the CPU vendor key; no local path exists"
+        out["gate_error"] = _L0REACH_ERROR
+        return out
+    d = l0reach.distance()
+    out["gates_met"] = "%d/%d" % (d["gates_met"], d["gates_total"])
+    out["gate_detail"] = [{"gate": g["gate"], "met": g["met"]} for g in d["gates"]]
+    out["closest_capability_below_the_os"] = d["closest_existing_lower_than_OS_capability"]
+    out["why"] = d["distance_in_one_line"]
     return out
 
 def L1_firmware():
@@ -53,7 +67,11 @@ def L1_firmware():
         g = k32.GetSystemFirmwareTable(0x41435049, 0, b, s)
         d = b.raw[:g]
         out["first_table"] = d[:4].decode("latin-1")
-        out["oem"] = d[16:24].decode("latin-1").strip("\x00 ")
+        # ACPI header: OEMID is bytes 10..16, OEM Table ID 16..24. Reading 16..24 and
+        # calling it "oem" was wrong for a day -- it is the table id ("CB-01"), and the
+        # vendor string ("LENOVO") is one field earlier.
+        out["oem_id"] = d[10:16].decode("latin-1").strip("\x00 ")
+        out["oem_table_id"] = d[16:24].decode("latin-1").strip("\x00 ")
     return out
 
 def L2_kernel():

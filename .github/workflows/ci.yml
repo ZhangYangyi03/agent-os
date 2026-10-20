@@ -31,6 +31,10 @@ jobs:
         run: |
           python -c "import json,sys;sys.path.insert(0,'.');import l0ctl;r=l0ctl.process_reach();assert r['total']>0;assert r['readable']>0;print('ok',r['readable'],'/',r['total'])"
           python -c "import sys;sys.path.insert(0,'.');import l0ctl;s=l0ctl.service_control('wuauserv','stop');assert 'ok' in s;print('stop without elevation ->',s['ok'],s['exit'])"
+      - name: microcode distance is measured as named gates, not a claim
+        working-directory: kernel/control
+        run: |
+          python -c "import json,sys;sys.path.insert(0,'.');import l0reach;d=l0reach.distance();assert d['gates_total']==5;assert 0<=d['gates_met']<=5;print('gates',d['gates_met'],'/',d['gates_total']);[print(' ',g['met'],g['gate'][:60]) for g in d['gates']]"
       - name: census runs and reports a verdict for every app it scanned
         working-directory: anyapp
         run: |

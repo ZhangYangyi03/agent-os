@@ -8,7 +8,7 @@
 
 | 层 | 名字 | 谁说了算 | 本机能碰吗 | 入口 | 实测状态 |
 |---|---|---|---|---|---|
-| L0 | 微码 microcode | CPU 厂商私钥 | 不能，永远不能 | — | 已测：Update Revision 0x0a404105，Update Status=6；这层没有任何个人入口 |
+| L0 | 微码 microcode | CPU 厂商私钥 | 不能写；距离量成 5 道闸，本机过 2 道 | kernel/control/l0reach.py | 已测：Revision 0x0541400a、Update Status=6、加载器 mcupdate_AuthenticAMD.dll 签名 Valid 且不可写（G1/G2 过）；G3 缺编译器、G4 缺签名密钥、G5 是 CPU 自己的熔断校验 |
 | L1 | 固件 firmware / ACPI / SMBIOS | OEM + 微软签名链 | 只读 | GetSystemFirmwareTable | 已测：ACPI FACP 表 268 字节，OEM 字段读作 CB-01（2026-10-20 复测；10-19 版误记 LENOVO）；写需厂商签名，无入口 |
 | L2 | 内核 kernel | 微软签名链 | 可读；自签驱动只在测试签名模式下能装载 | kernel/ 子目录 | 骨架已交付（KMHello + 签名/安装脚本 + stubcheck），本机未 install：缺 MSVC，微软安装器域名 TLS 断；见 kernel/docs/toolchain-dead-ends.md |
 | L3 | 驱动 / 服务 | 系统 ACL | 可枚举、可查询；停止/启动要有权限 | kernel/control/l0ctl.py | 已测：770 个服务、442 个驱动可枚举；对 wuauserv 发 stop 被拒，exit 5；机上有 5 个 360 内核组件 + WdFilter |
@@ -30,6 +30,26 @@ L2 的实现在 kernel/（原 kernel-lab），L5/L6/L7 的实现在 anyapp/（�
     cd anyapp    && python census.py         # 全机应用普查：每条通道各收得住几个应用
     cd anyapp    && python demo.py           # 三条通道收敛成同一个 {name,args,returns,channel}
     cd kernel/control && python l0ctl.py     # L3/L4 的控制面：枚举、查询、打开、被拒的 Win32 码
+
+## 离"在微码层控制这台机器"还有多远 —— 量过，不是感觉
+
+kernel/control/l0reach.py 把这段距离拆成五道有名字的闸，逐道在本机判定：
+
+    G1 这台 CPU 有厂商微码、且系统已经加载了它        过  Revision 0x0541400a / Update Status 6
+    G2 那个加载器不可被用户进程改写                    过  mcupdate_AuthenticAMD.dll 签名 Valid（Microsoft Windows），写被拒
+    G3 要应用自己的 blob 就得有驱动，驱动要先有编译器   不过  本机无 cl.exe/link.exe/MSBuild，微软下载域名 TLS 断
+    G4 有驱动还得有签名：要么微软的密钥，要么测试签名   不过  测试签名要重启，且整机失去强制签名保护
+    G5 即使签好了，CPU 只认本机 family/model/stepping 的
+       blob 并通过熔断校验                              不过  这一道本地特权动不了，是硅上的
+
+结论就一句：2/5。前两道说明"厂商那条路在这台机器上是通的"，后三道说明"通的是厂商，
+不是我"。剩下的三道具名：编译器、密钥、CPU 熔断。没有一件是靠提权能挪动的。
+
+本机离 L0 最近的东西反倒不是我能写的驱动，而是一个已经签好、正在跑、由厂商提供的
+内核驱动：AMDRyzenMasterDriverV31（\??\C:\WINDOWS\system32\AMDRyzenMasterDriver.sys，
+AUTO_START，RUNNING）。它能碰 SMU/PCI 那一层。真正的距离不是"能不能进到那层"，
+而是"它不给我这个合同"——没有文档的 IOCTL，没有可用的接口。这跟微码那道闸是同一句话：
+差的是许可，不是能力。
 
 ## "控制"在这里是量的，不是说的
 
