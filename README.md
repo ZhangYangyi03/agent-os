@@ -65,8 +65,26 @@ osctl/elevate.py + osctl/Elevate.cmd（双击就是你点 UAC 的地方）。安
 最后一条是故意放进去的：提权不会打开 lsass，回执里会明写 refused。提权能打开的是文件系统、
 HKLM、服务、事件日志那四道；进程那 202 条要的是内核态，不是提权。
 
-现在没提权时，elevate.py --run 直接拒绝并把 integrity 报出来（medium），退出码 3——
-它不会自己去提权，UAC 那一下永远只能由人点。
+现在没提权时，elevate.py --run 直接拒绝并把 integrity 报出来（medium），退出码 3。
+
+**实测（2026-10-20，两次真实运行）**：`osctl/Ascend.cmd` 调一次 `Start-Process -Verb RunAs`，
+机器 EnableLUA=1 / ConsentPromptBehaviorAdmin=5 / PromptOnSecureDesktop=1，所以那一下必然弹框——
+本次是操作者要的，所以由操作者答。回执 integrity=high，6 条动作 5 条 GRANTED、1 条 refused：
+
+    fs.write.system_dir           granted  C:\Windows 写入成功并删掉
+    registry.write.hklm           granted  HKLM\SOFTWARE 建键成功并删掉
+    service.create.never_started  granted  占位服务创建、查询、删除（从未启动）
+    eventlog.read.security        granted  读到一条 Security 事件
+    token.administrators_group    granted  IsInRole(Administrator)=True
+    process.ppl_still_refused     refused  lsass pid 2020，PROCESS_VM_READ=False win32 5
+
+最后一条就是提权买不到的东西：High 完整性令牌读 lsass 仍然被内核拒（PPL）。提权把
+磁盘/注册表/服务/事件日志四道打开，进程那 202 条要的是内核态。
+
+所以这句话要改得准确：**它能自己发起提权请求，但"变成管理员"这一步永远是 UAC 回答的**。
+脚本不绕过、不关闭、不预答 UAC；它做的是把 Start-Process -Verb RunAs 这一句写下来，
+省掉去右键的那一下。回执带链式 sha256（prev_sha256 指向上一次的 sha256），
+连跑两次实测 5a5e3c55 → 9e49c816 → 8032d94c。
 
 ## 目标：Agent 直接控制整个操作系统 —— 现在是 6/14 类做得到，拒绝的地方有名字
 

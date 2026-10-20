@@ -79,6 +79,44 @@ def test_no_forbidden_verb_is_executed():
     assert calls, "no subprocess calls found at all -- the test is not looking at anything"
 
 
+def test_receipt_chains_across_runs():
+    """Run the elevated path twice with a pinned level and a temp receipt path.
+
+    The bug this catches: reading prev_sha256 after opening the file for write, which
+    leaves every receipt with prev="" and makes the log unchained -- a silent history
+    rewrite. It cannot be caught by reading the code once; it takes two runs.
+    """
+    import tempfile
+    import io
+    import json as _json
+    real_receipt = elevate.RECEIPT
+
+    stub = {"name": "stub", "why": "test double", "needs_admin": True,
+            "probe": lambda: {"changed": True, "evidence": "stub"},
+            "revert": lambda: True}
+
+    real_actions = elevate.ACTIONS[:]
+    elevate.ACTIONS[:] = [stub]
+    tmp = tempfile.mkdtemp(prefix="af-receipt-")
+    elevate.RECEIPT = os.path.join(tmp, "r.json")
+    real_integrity = elevate.integrity
+    elevate.integrity = lambda: "high"
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            r1 = elevate.run()
+            first = _json.load(open(elevate.RECEIPT, encoding="utf-8"))
+            r2 = elevate.run()
+            second = _json.load(open(elevate.RECEIPT, encoding="utf-8"))
+    finally:
+        elevate.ACTIONS[:] = real_actions
+        elevate.RECEIPT = real_receipt
+        elevate.integrity = real_integrity
+    assert r1 == 0 and r2 == 0, (r1, r2)
+    assert first["prev_sha256"] == "", first["prev_sha256"]
+    assert second["prev_sha256"] == first["sha256"], (second["prev_sha256"], first["sha256"])
+    assert second["sha256"] != first["sha256"], "the second receipt has the same hash as the first"
+
+
 def test_selftest_passes():
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):

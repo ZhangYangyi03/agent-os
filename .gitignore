@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# a receipt is evidence of a run on one machine, not a source file
+osctl/elevation-receipt.json

@@ -49,6 +49,14 @@ jobs:
         working-directory: osctl
         run: |
           python test_elevate.py
+      - name: the receipt printer reports unreverted actions as a failure
+        working-directory: osctl
+        run: |
+          python -c "import json,os;p='elevation-receipt.json';json.dump({'integrity':'high','ok':False,'started':'t','finished':'t','actions':[{'name':'x','granted':True,'reverted':False,'evidence':'e'}]},open(p,'w'))"
+          python show_receipt.py
+          if ($LASTEXITCODE -ne 2) { Write-Host "expected exit 2 for an unreverted action"; exit 1 }
+          python -c "import os;os.remove('elevation-receipt.json')"
+        shell: pwsh
       - name: the host report says which files are windows-only here
         working-directory: osctl
         run: |

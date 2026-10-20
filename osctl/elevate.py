@@ -158,14 +158,29 @@ def _r_privilege():
 
 
 def _a_ppl_still_refused():
-    """The honest half: elevation does NOT open protected processes. Recorded, not hidden."""
-    code = (
-        "try { $p = Get-Process -Name lsass -ErrorAction Stop; "
-        "$h = $p.Handle; Write-Output ('opened:' + $h) } "
-        "catch { Write-Output ('refused:' + $_.Exception.Message.Substring(0,[Math]::Min(60,$_.Exception.Message.Length))) }")
-    rc, out, err = _run(["powershell", "-NoProfile", "-Command", code], timeout=120)
-    return {"changed": out.strip().startswith("opened"),
-            "evidence": out.strip()[:120] or err.strip()[:120]}
+    """The honest half: elevation does NOT make a protected process readable.
+
+    This probe was wrong the first time it was run for real: it asked whether a handle
+    to lsass could be *opened* (Get-Process succeeded, so it reported granted=True) and
+    called that "not refused". Opening is not reading. The measurement that matters is
+    whether the process memory can be touched, which is what l0ctl.process_reach already
+    asks -- so this now asks that, for lsass specifically, and reports the Win32 code.
+    """
+    sys.path.insert(0, os.path.join(HERE, "..", "kernel", "control"))
+    import l0ctl
+    import ctypes
+    pid = None
+    for p in l0ctl.processes():
+        if p["name"].lower() == "lsass.exe":
+            pid = p["pid"]
+            break
+    if pid is None:
+        return {"changed": False, "evidence": "lsass.exe not in the process list"}
+    read_ok, read_err, read_why = l0ctl.can_open(pid, 0x0010)   # PROCESS_VM_READ
+    op_ok, op_err, op_why = l0ctl.can_open(pid, 0x0008)         # PROCESS_VM_OPERATION
+    return {"changed": bool(read_ok),
+            "evidence": "pid %d  VM_READ=%s(win32 %s: %s)  VM_OPERATION=%s(win32 %s)" % (
+                pid, read_ok, read_err, read_why, op_ok, op_err)}
 
 
 def _r_ppl_still_refused():
@@ -241,6 +256,9 @@ def run():
             entry["note"] = "REVERT FAILED -- machine left changed, see revert_evidence"
         receipt["actions"].append(entry)
     receipt["finished"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    # The receipt is evidence, so it chains: the previous hash is carried forward and the
+    # new one covers both. Reading it before the write is the whole contract -- moving this
+    # block below the open() would silently unchain every receipt from that point on.
     prev = ""
     if os.path.exists(RECEIPT):
         try:
