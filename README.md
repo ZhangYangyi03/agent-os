@@ -86,6 +86,12 @@ HKLM、服务、事件日志那四道；进程那 202 条要的是内核态，�
 省掉去右键的那一下。回执带链式 sha256（prev_sha256 指向上一次的 sha256），
 连跑两次实测 5a5e3c55 → 9e49c816 → 8032d94c。
 
+## 降级的代价（DOWNGRADE-COST.md）与不降级的替代路线（NO-DOWNGRADE.md）
+
+降级 = testsigning + 自签驱动。它买的是内核态任意读写，付的是整机所有进程失去强制签名校验、
+与 Secure Boot 叠加要再动 nointegritychecks、和 HVCI 互斥（本机 HVCI 没开，所以没有第二道兜底），
+而且买不到微码和 PPL。技术状态能回滚，降级窗口期里发生的事不能。
+
 ## 不降级的替代路线（详见 NO-DOWNGRADE.md，五条都实测过）
 
     route 1  厂商签名驱动      能力在机器上、钥匙在厂商手里：设备 \\.\AMDRyzenMasterDriverV31 打不开，win32 5
