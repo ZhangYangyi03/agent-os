@@ -31,6 +31,43 @@ L2 的实现在 kernel/（原 kernel-lab），L5/L6/L7 的实现在 anyapp/（�
     cd anyapp    && python demo.py           # 三条通道收敛成同一个 {name,args,returns,channel}
     cd kernel/control && python l0ctl.py     # L3/L4 的控制面：枚举、查询、打开、被拒的 Win32 码
 
+## 迁移到别的机器：git clone 就能跑，但只有 Windows 那半边是真跑
+
+    git clone https://github.com/ZhangYangyi03/agent-os && cd agent-os
+    python osctl/hostenv.py      # 先说清这台机器上哪些文件能跑、哪些不能，以及为什么
+
+实测：在这台机器上把仓库 clone 到临时目录，四层探针全部当场跑通——layers.py、osctl.py --md、
+census.py --quick、l0ctl.py，clone 3.7 秒，没有一处写死的本机路径（全仓库搜 "C:\Users\china"
+零命中，路径都从 __file__ 和环境变量推）。
+
+可移植的四个文件和不可移植的五个文件是分开的，hostenv.py 报的就是这个：
+
+    anyapp/contract.py probe.py census.py test_census.py   纯 python，任何系统都能跑
+    layers.py osctl/*.py kernel/control/*.py               ctypes 进 kernel32/advapi32、
+                                                           sc.exe、schtasks.exe、mcupdate DLL
+
+拿到 Linux 机器（比如那台 KOS 机）能直接跑的是 anyapp 那四个：契约、分类、普查、测试。
+其余五个会当场报"这台机器没有 sc.exe / 没有这个 DLL"，而不是假装跑出数字。
+这个边界不是设计缺陷，是"控制操作系统"这件事本身就跟操作系统绑定。
+
+## 提权：做成 allow-list + 每个动作自带 revert，不是"保证"两个字
+
+osctl/elevate.py + osctl/Elevate.cmd（双击就是你点 UAC 的地方）。安全不是承诺，是四条结构：
+
+    1  allow-list   动作是文件里写死的 6 个，没有开关、没有环境变量能加。CI 断言杜绝 bcdedit/testsigning/driver/schtasks
+    2  revert or die 每个动作声明 revert，在 finally 里跑；revert 失败 → 回执标 REVERTED:false、退出码 2，绝不报成功
+    3  read-back    改完要读回来确认变了，撤销后要读回来确认恢复了，否则不算 granted
+    4  不持久化      不启动任何服务、不加载驱动、不改签名设置、不写启动项；创建的那个服务是 stopped 且同一次运行里删掉
+
+    六条允许的动作：写 C:\Windows 一个文件 / 建一个 HKLM\SOFTWARE 键 / 建一个从不启动的占位服务 /
+                     读一条 Security 日志 / 查令牌是否真在 Administrators 里 / 验证受保护进程提权后仍被拒
+
+最后一条是故意放进去的：提权不会打开 lsass，回执里会明写 refused。提权能打开的是文件系统、
+HKLM、服务、事件日志那四道；进程那 202 条要的是内核态，不是提权。
+
+现在没提权时，elevate.py --run 直接拒绝并把 integrity 报出来（medium），退出码 3——
+它不会自己去提权，UAC 那一下永远只能由人点。
+
 ## 目标：Agent 直接控制整个操作系统 —— 现在是 6/14 类做得到，拒绝的地方有名字
 
 osctl/osctl.py 是控制面本身：14 个对象类，每类不只是枚举，还真的去改一次再改回来，

@@ -41,6 +41,22 @@ jobs:
         run: |
           python -c "import sys,os;sys.path.insert(0,'.');import osctl;r=osctl.file_write(os.path.join(os.environ.get('TEMP','.'),'af-ci-probe.txt'));assert r['result']['granted'] is True,r;print('write+read+delete ok')"
           python -c "import sys,os;sys.path.insert(0,'.');import osctl;r=osctl.registry_probe('HKCU','Software\\af-ci-%d'%os.getpid());assert r['result']['granted'] is True,r;print('hkcu ok')"
+      - name: the elevation path is an allow-list with a revert per action
+        working-directory: osctl
+        run: |
+          python elevate.py --selftest
+      - name: the elevation path refuses to run without elevation, and says so
+        working-directory: osctl
+        run: |
+          python elevate.py --run > out.json
+          python -c "import json;d=json.load(open('out.json'));assert d['ran'] is False,d;print('refused without elevation:',d['integrity'])"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+        shell: pwsh
+      - name: the host report says which files are windows-only here
+        working-directory: osctl
+        run: |
+          python hostenv.py > host.json
+          python -c "import json;d=json.load(open('host.json'));assert d['system'];print(d['system'],d['release'],'portable',len(d['runs_here']['portable']))"
       - name: microcode distance is measured as named gates, not a claim
         working-directory: kernel/control
         run: |
