@@ -13,9 +13,9 @@
 | L2 | 内核 kernel | 微软签名链 | 可读；自签驱动只在测试签名模式下能装载 | kernel/ 子目录 | 骨架已交付（KMHello + 签名/安装脚本 + stubcheck），本机未 install：缺 MSVC，微软安装器域名 TLS 断；见 kernel/docs/toolchain-dead-ends.md |
 | L3 | 驱动 / 服务 | 系统 ACL | 可枚举、可查询；停止/启动要有权限 | kernel/control/l0ctl.py | 已测：770 个服务、442 个驱动可枚举；对 wuauserv 发 stop 被拒，exit 5；机上有 5 个 360 内核组件 + WdFilter |
 | L4 | 进程 / 内存 | 同用户可读写 | 同用户内可读可写，PPL/受保护进程直接拒 | kernel/control/l0ctl.py | 已测：336 个进程里 132 个可读可写，202 个被内核拒绝（System / lsass / csrss …），本进程未提权、完整性 medium、只有 5 个特权 |
-| L5 | 本地数据 | 文件 ACL + 应用加密 | 明文可读；加密需取密钥 | SQLite / CDP / 配置文件 | 已测：28 个应用 122 个明文库；飞书 SQLCipher 参数已定位 |
-| L6 | 应用界面 | 应用自己 | 可驱动 | CDP / 命令行 / UI 自动化 | 已测：Cursor CDP 9222 返回 200（2026-10-19；10-20 复测时该客户端未运行，端口关） |
-| L7 | 网络 API | 服务方 | 可调 | 官方 OpenAPI / HTTP | 已测：Ollama 11434 契约已知；飞书 OpenAPI 待授权 |
+| L5 | 本地数据 | 文件 ACL + 应用加密 | 明文可读；加密需取密钥 | anyapp/census.py | 已测：44 个应用扫完，31 个有可打开的明文库共 129 个；5 个一条通道都走不通；飞书 SQLCipher 参数已定位 |
+| L6 | 应用界面 | 应用自己 | 可驱动 | CDP / 命令行 / UI 自动化 | 已测：23 个应用有 Chromium Local State，8 个可判 client-drive；当场 33 个 loopback 监听里 0 个开着 CDP |
+| L7 | 网络 API | 服务方 | 可调 | 官方 OpenAPI / HTTP | 已测：当场只有 1/33 个监听真回了契约（18001 /health）；另有 2 个 200 但 body 是 HTML/XML，被单列成"答了但不是契约" |
 | L8 | 云端数据 | 服务方 | 只能通过 L6/L7 | API | 不能越权；只拿被授权的数据 |
 
 ## 一个仓库，不是三个
@@ -27,8 +27,9 @@ L2 的实现在 kernel/（原 kernel-lab），L5/L6/L7 的实现在 anyapp/（�
 "论点和它的证据各在一个仓库里"。现在两次命令就把这张表跑完：
 
     python layers.py                        # L0..L8 逐层探测，这台机器的真实状态
-    cd anyapp    && python demo.py          # 三条通道收敛成同一个 {name,args,returns,channel}
-    cd kernel/control && python l0ctl.py    # L3/L4 的控制面：枚举、查询、打开、被拒的 Win32 码
+    cd anyapp    && python census.py         # 全机应用普查：每条通道各收得住几个应用
+    cd anyapp    && python demo.py           # 三条通道收敛成同一个 {name,args,returns,channel}
+    cd kernel/control && python l0ctl.py     # L3/L4 的控制面：枚举、查询、打开、被拒的 Win32 码
 
 ## "控制"在这里是量的，不是说的
 

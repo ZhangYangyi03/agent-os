@@ -29,3 +29,30 @@
 - 装有可自治通道证据的应用：47 个
 - 存在明文可读 SQLite 的应用：28 个，库文件 122 个
 - 全机 PE 二进制：53615 个 / 65.5 GB（反编译口径的基数）
+
+## 复测：2026-10-20，全部由 census.py 生成，不是回忆
+
+    python census.py --quick      # 44 个 AppData 应用，5.4 秒
+
+    apps_scanned                 44
+    local-db                     31   （有明文 SQLite 且能打开，共 129 个库文件）
+    client-drive                  8   （有 Chromium Local State，即有能力，不等于被允许）
+    unsupported                   5
+    chromium_apps                23
+
+L6/L7 这一次是当场量的，不是引用 README：当时 33 个 loopback 监听，只有 1 个真的
+回了契约（18001 /health，com.docker.backend.exe，JSON 带 ok/resources/events/chain_ok）。
+另外两个"答了但不是契约"的，值得单独记：
+
+    21962  /v1/models  -> 200，但 body 是 HTML（ollama app.exe 的 GUI 页面）
+    37989  /api/tags   -> 200，但 body 是 XML 且 status_code=404（XrRuntime.exe）
+
+只看状态码的探测会把这两个算成"通道可用"。这不是假设出来的错误，是这台机器上
+真实发生的一次误判，所以 census.py 现在把"200 但不是契约"单独归一类。
+
+## 与 10-19 版的差异，逐条
+
+    plaintext_sqlite_apps     28 -> 31
+    plaintext_sqlite_files   122 -> 129
+    新增：census.py          全机扫一遍，输出上面这些数字
+    修正：client-drive 不再把"有 Local State"说成"可驱动"

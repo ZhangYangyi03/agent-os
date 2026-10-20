@@ -31,6 +31,14 @@ jobs:
         run: |
           python -c "import json,sys;sys.path.insert(0,'.');import l0ctl;r=l0ctl.process_reach();assert r['total']>0;assert r['readable']>0;print('ok',r['readable'],'/',r['total'])"
           python -c "import sys;sys.path.insert(0,'.');import l0ctl;s=l0ctl.service_control('wuauserv','stop');assert 'ok' in s;print('stop without elevation ->',s['ok'],s['exit'])"
+      - name: census runs and reports a verdict for every app it scanned
+        working-directory: anyapp
+        run: |
+          python census.py --quick > census.json
+          python -c "import json;c=json.load(open('census.json'));assert c['apps_scanned']>0;assert sum(c['verdicts'].values())==c['apps_scanned'],c['verdicts'];print('ok',c['apps_scanned'],c['verdicts'])"
+      - name: an HTML page on an API port is not counted as a contract
+        working-directory: anyapp
+        run: python test_census.py
       - name: db.tables works on a synthetic sqlite file
         working-directory: anyapp
         run: |
